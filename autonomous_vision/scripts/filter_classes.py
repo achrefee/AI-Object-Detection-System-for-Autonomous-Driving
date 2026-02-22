@@ -21,11 +21,12 @@ from pathlib import Path
 from collections import Counter
 
 
-# ── BDD100K original class IDs → our target class IDs ──────────────────
-# Adjust this mapping based on the actual class IDs in your raw dataset.
+# ── Source dataset class mappings ──────────────────────────────────────
+# Choose the correct mapping based on your raw data source.
 # Key = original class ID in raw labels, Value = new class ID (or None to drop)
-CLASS_MAPPING = {
-    # BDD100K detection classes (typical order):
+
+# MAPPING A: BDD100K detection classes → our target IDs
+BDD100K_MAPPING = {
     #  0: pedestrian, 1: rider, 2: car, 3: truck, 4: bus,
     #  5: train, 6: motorcycle, 7: bicycle, 8: traffic light, 9: traffic sign
     0: 5,       # pedestrian → pedestrian (5)
@@ -39,6 +40,23 @@ CLASS_MAPPING = {
     8: 7,       # traffic light → traffic_light_red (7) — refine by color later
     9: 10,      # traffic sign → stop_sign (10) — refine by subclass later
 }
+
+# MAPPING B: COCO (after download_coco.py remap) → identity pass-through
+# download_coco.py already remaps to our target IDs, so this is a pass-through.
+COCO_MAPPING = {
+    0: 0,       # car → car (0)
+    1: 1,       # truck → truck (1)
+    2: 2,       # bus → bus (2)
+    3: 3,       # motorcycle → motorcycle (3)
+    4: 4,       # bicycle → bicycle (4)
+    5: 5,       # pedestrian → pedestrian (5)
+    7: 7,       # traffic_light_red → traffic_light_red (7)
+    10: 10,     # stop_sign → stop_sign (10)
+}
+
+# ★ SELECT YOUR SOURCE HERE ★
+# Change to BDD100K_MAPPING if using BDD100K data
+CLASS_MAPPING = COCO_MAPPING
 
 # Full 18-class target set from the AI Object Detection System Report
 TARGET_CLASSES = {

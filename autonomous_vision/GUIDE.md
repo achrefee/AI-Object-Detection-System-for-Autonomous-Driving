@@ -10,12 +10,12 @@
 | Jour | Étape | Objectif |
 |------|-------|----------|
 | 1 | Structure du projet | ✅ **Fait** — Répertoires et scripts créés |
-| 1–2 | Télécharger BDD100K | Obtenir images + labels |
+| 1–2 | Télécharger COCO 2017 | Obtenir images + labels via script automatique |
 | 3 | Filtrer les classes | Garder uniquement les 18 classes cibles |
 | 4 | Nettoyer le dataset | Supprimer les fichiers invalides |
 | 5 | Équilibrer le dataset | Corriger les classes sous-représentées |
 | 6 | Diviser le dataset | Train 70% / Val 20% / Test 10% |
-| 6 | Configurer dataset.yaml | Préparer pour l'entraînement YOLO |
+| 6 | Configurer dataset.yaml | ✅ **Fait** — Prêt pour l'entraînement YOLO |
 | 7+ | Compléter les classes manquantes | Ajouter GTSRB, données custom, etc. |
 
 ---
@@ -37,39 +37,82 @@ autonomous_vision/
 
 ---
 
-## 🧩 ÉTAPE 2 — Télécharger BDD100K (Jour 1–2)
+## 🧩 ÉTAPE 2 — Télécharger le Dataset COCO 2017 (Jour 1–2)
 
-### Pourquoi BDD100K ?
-- **100 000 images** de conduite réelle
-- Conditions variées (jour, nuit, pluie, brouillard)
-- Labels de détection déjà fournis
-- Le meilleur dataset gratuit pour la conduite autonome
+### Pourquoi COCO ?
+- **330 000 images** dont beaucoup de scènes de conduite
+- 8 des 18 classes cibles disponibles directement
+- **Téléchargement automatique** via script (pas d'inscription manuelle)
+- Labels de détection de haute qualité
 
-### Comment télécharger
+### Prérequis — Installer les dépendances
 
-1. **Créer un compte** sur [bdd-data.berkeley.edu](https://bdd-data.berkeley.edu/)
+```bash
+pip install fiftyone ultralytics Pillow
+```
 
-2. **Télécharger ces fichiers :**
+> [!NOTE]
+> FiftyOne télécharge COCO depuis les serveurs officiels. La première exécution peut prendre du temps (~20 Go).
 
-   | Fichier | Taille | Description |
-   |---------|--------|-------------|
-   | `bdd100k_images_100k.zip` | ~6.6 Go | 100K images de conduite |
-   | `bdd100k_labels_release.zip` | ~100 Mo | Labels de détection (JSON) |
+### Commande à exécuter
 
-3. **Extraire dans votre projet :**
-   ```
-   autonomous_vision/data/raw/images/   ← Mettre toutes les images ici
-   autonomous_vision/data/raw/labels/   ← Mettre tous les labels ici
-   ```
+```bash
+cd autonomous_vision
 
-> [!WARNING]
-> **Les labels BDD100K sont au format JSON, pas YOLO !**
-> Vous devrez les convertir en format YOLO (`.txt`) avant d'utiliser `filter_classes.py`.
-> Demandez-moi de créer un script `convert_bdd_to_yolo.py` quand vous aurez téléchargé les données.
+# 🧪 Test rapide d'abord (500 images — vérifier que tout fonctionne)
+python scripts/download_coco.py --max-samples 500
 
-### Format YOLO attendu
+# 🚀 Téléchargement complet (toutes les images pertinentes)
+python scripts/download_coco.py
+```
 
-Chaque fichier `.txt` dans `data/raw/labels/` doit contenir :
+### Options disponibles
+
+| Option | Description |
+|--------|-------------|
+| `--max-samples 500` | Limiter le nombre d'images (pour tester) |
+| `--split train` | Télécharger uniquement le split train |
+| `--split validation` | Télécharger uniquement le split validation |
+| `--split both` | Télécharger les deux (par défaut) |
+
+### Ce que fait le script
+
+1. 📥 Télécharge COCO 2017 via FiftyOne
+2. 🔍 Filtre uniquement les 8 classes pertinentes pour la conduite
+3. 📦 Exporte en format YOLO (`.txt`)
+4. 🔄 Remappe les class IDs vers notre numérotation (0–17)
+5. 📁 Organise tout dans `data/raw/images/` et `data/raw/labels/`
+
+### Résultat attendu
+```
+📥 Downloading COCO 2017 — train split
+✅ Downloaded 82783 samples
+   After filtering: ~45000 samples with target classes
+📦 Exporting to YOLO format → data/coco_export
+🔄 Remapped 45000 label files to target class IDs
+📁 Organized into data/raw:
+   Images: 45000
+   Labels: 45000
+🎉 COCO Download Complete!
+```
+
+### Classes couvertes par COCO
+
+| ✅ Couvertes (8/18) | ❌ À compléter plus tard (10/18) |
+|--------------------|----------------------------------|
+| car, truck, bus | cyclist |
+| motorcycle, bicycle | traffic_light_green, traffic_light_yellow |
+| pedestrian | speed_limit_sign, yield_sign, no_entry_sign |
+| traffic_light (→ red), stop_sign | road_barrier, cone, pothole, crosswalk |
+
+> [!TIP]
+> **Alternative : BDD100K** — Si vous préférez des images spécifiquement de conduite,
+> vous pouvez télécharger BDD100K manuellement depuis [bdd-data.berkeley.edu](https://bdd-data.berkeley.edu/).
+> Dans ce cas, changez `CLASS_MAPPING = BDD100K_MAPPING` dans `filter_classes.py`.
+
+### Format YOLO (généré automatiquement)
+
+Chaque fichier `.txt` dans `data/raw/labels/` contient :
 ```
 # <class_id> <x_center> <y_center> <width> <height>
 # Toutes les valeurs sont normalisées entre 0 et 1
@@ -88,24 +131,24 @@ Garder uniquement les **18 classes cibles** et supprimer tout le reste.
 
 | ID | Classe | Catégorie | Source |
 |----|--------|-----------|--------|
-| 0 | `car` | Véhicule | BDD100K ✅ |
-| 1 | `truck` | Véhicule | BDD100K ✅ |
-| 2 | `bus` | Véhicule | BDD100K ✅ |
-| 3 | `motorcycle` | Véhicule | BDD100K ✅ |
-| 4 | `bicycle` | Véhicule | BDD100K ✅ |
-| 5 | `pedestrian` | Usager Vulnérable | BDD100K ✅ |
-| 6 | `cyclist` | Usager Vulnérable | BDD100K ✅ |
-| 7 | `traffic_light_red` | Signalisation | BDD100K ⚠️ (à raffiner) |
-| 8 | `traffic_light_green` | Signalisation | BDD100K ⚠️ (à raffiner) |
-| 9 | `traffic_light_yellow` | Signalisation | BDD100K ⚠️ (à raffiner) |
-| 10 | `stop_sign` | Signalisation | BDD100K / GTSRB |
-| 11 | `speed_limit_sign` | Signalisation | GTSRB / Mapillary |
-| 12 | `yield_sign` | Signalisation | GTSRB / Mapillary |
-| 13 | `no_entry_sign` | Signalisation | GTSRB / Mapillary |
-| 14 | `road_barrier` | Obstacle | Custom / CARLA |
-| 15 | `cone` | Obstacle | Custom / CARLA |
-| 16 | `pothole` | Obstacle | Custom / Kaggle |
-| 17 | `crosswalk` | Route | Custom / BDD100K seg |
+| 0 | `car` | Véhicule | COCO ✅ |
+| 1 | `truck` | Véhicule | COCO ✅ |
+| 2 | `bus` | Véhicule | COCO ✅ |
+| 3 | `motorcycle` | Véhicule | COCO ✅ |
+| 4 | `bicycle` | Véhicule | COCO ✅ |
+| 5 | `pedestrian` | Usager Vulnérable | COCO ✅ |
+| 6 | `cyclist` | Usager Vulnérable | ⏳ BDD100K / Custom |
+| 7 | `traffic_light_red` | Signalisation | COCO ⚠️ (à raffiner par couleur) |
+| 8 | `traffic_light_green` | Signalisation | ⏳ À raffiner depuis COCO |
+| 9 | `traffic_light_yellow` | Signalisation | ⏳ À raffiner depuis COCO |
+| 10 | `stop_sign` | Signalisation | COCO ✅ |
+| 11 | `speed_limit_sign` | Signalisation | ⏳ GTSRB / Mapillary |
+| 12 | `yield_sign` | Signalisation | ⏳ GTSRB / Mapillary |
+| 13 | `no_entry_sign` | Signalisation | ⏳ GTSRB / Mapillary |
+| 14 | `road_barrier` | Obstacle | ⏳ Custom / CARLA |
+| 15 | `cone` | Obstacle | ⏳ Custom / CARLA |
+| 16 | `pothole` | Obstacle | ⏳ Custom / Kaggle |
+| 17 | `crosswalk` | Route | ⏳ Custom |
 
 ### Commande à exécuter
 
@@ -233,14 +276,15 @@ names:
 
 ## 🧩 ÉTAPE 8 — Compléter les Classes Manquantes (Jour 7+)
 
-BDD100K ne couvre pas toutes les 18 classes. Voici comment compléter :
+COCO couvre 8 des 18 classes. Voici comment compléter les 10 restantes :
 
 ### Sources recommandées
 
 | Classes manquantes | Dataset | Lien |
 |-------------------|---------|------|
+| `cyclist` | **BDD100K** (rider class) | [bdd-data.berkeley.edu](https://bdd-data.berkeley.edu/) |
+| `traffic_light_green/yellow` | Raffiner depuis les détections COCO | Script custom à créer |
 | `speed_limit_sign`, `yield_sign`, `no_entry_sign` | **GTSRB** | [benchmark.ini.rub.de](https://benchmark.ini.rub.de/) |
-| `stop_sign`, panneaux divers | **Mapillary Traffic Signs** | [mapillary.com/dataset](https://www.mapillary.com/dataset/trafficsign) |
 | `road_barrier`, `cone` | **CARLA Simulator** ou collection personnelle | [carla.org](https://carla.org/) |
 | `pothole` | **Kaggle Pothole Dataset** | Chercher "pothole detection" sur Kaggle |
 | `crosswalk` | **Collection personnelle** | Dashcam footage |
@@ -284,9 +328,11 @@ results = model.train(
 
 - [x] Créer la structure du projet
 - [x] Créer les scripts de traitement
-- [x] Configurer `dataset.yaml`
-- [ ] Télécharger BDD100K
-- [ ] Convertir les labels JSON → YOLO (si nécessaire)
+- [x] Créer le script de téléchargement COCO
+- [x] Configurer `dataset.yaml` (18 classes)
+- [ ] Installer les dépendances (`pip install fiftyone ultralytics Pillow`)
+- [ ] Tester le téléchargement (`download_coco.py --max-samples 500`)
+- [ ] Lancer le téléchargement complet (`download_coco.py`)
 - [ ] Exécuter `filter_classes.py`
 - [ ] Exécuter `clean_dataset.py`
 - [ ] Exécuter `balance_dataset.py`
@@ -300,7 +346,8 @@ results = model.train(
 
 | Si vous êtes bloqué sur... | Demandez-moi... |
 |---------------------------|-----------------|
-| Labels BDD100K en JSON | "Crée un script `convert_bdd_to_yolo.py`" |
+| Erreur avec FiftyOne | Copiez-collez l'erreur |
+| Ajouter les données BDD100K | "Change le mapping pour BDD100K" |
 | Convertir GTSRB | "Crée un script pour convertir GTSRB en YOLO" |
 | Entraînement Kaggle | "Crée le notebook Kaggle d'entraînement" |
 | Erreurs dans les scripts | Copiez-collez l'erreur |

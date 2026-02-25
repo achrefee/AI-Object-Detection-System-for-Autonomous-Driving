@@ -1,0 +1,72 @@
+# ============================================================
+# Camera Calibration Parameters
+# ============================================================
+# These values should be updated after running camera_calibration.py
+# Default values are for a typical 1080p dashcam
+
+camera:
+  # Image resolution
+  width: 1280
+  height: 720
+
+  # Intrinsic parameters (pixels)
+  # fx, fy = focal length in pixels
+  # cx, cy = principal point (usually image center)
+  fx: 800.0
+  fy: 800.0
+  cx: 640.0
+  cy: 360.0
+
+  # Distortion coefficients [k1, k2, p1, p2, k3]
+  distortion: [0.0, 0.0, 0.0, 0.0, 0.0]
+
+  # Camera mounting height above ground (meters)
+  mount_height: 1.2
+
+# Known real-world object heights (meters) for geometric distance estimation
+# Format: class_name: [height, width, depth]
+known_dimensions:
+  car:
+    height: 1.50
+    width: 1.80
+    depth: 4.50
+  truck:
+    height: 3.50
+    width: 2.50
+    depth: 12.00
+  bus:
+    height: 3.20
+    width: 2.55
+    depth: 12.00
+  motorcycle:
+    height: 1.10
+    width: 0.80
+    depth: 2.20
+  bicycle:
+    height: 1.00
+    width: 0.60
+    depth: 1.80
+  pedestrian:
+    height: 1.70
+    width: 0.50
+    depth: 0.30
+  cyclist:
+    height: 1.70
+    width: 0.60
+    depth: 1.80
+  traffic_light_red:
+    height: 0.40
+    width: 0.30
+    depth: 0.20
+  traffic_light_green:
+    height: 0.40
+    width: 0.30
+    depth: 0.20
+  traffic_light_yellow:
+    height: 0.40
+    width: 0.30
+    depth: 0.20
+  traffic_sign:
+    height: 0.75
+    width: 0.75
+    depth: 0.05

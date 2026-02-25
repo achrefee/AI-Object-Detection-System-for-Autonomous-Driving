@@ -1,0 +1,26 @@
+# ============================================================
+# Autonomous Vision — Dependencies
+# ============================================================
+
+# Core ML Framework
+ultralytics>=8.1.0          # YOLOv8 detection & tracking
+torch>=2.0.0                # PyTorch backend
+torchvision>=0.15.0         # Vision utilities
+
+# Computer Vision
+opencv-python>=4.8.0        # Image/video processing
+Pillow>=10.0.0              # Image manipulation
+
+# Depth Estimation
+timm>=0.9.0                 # MiDaS model backbone (PyTorch Image Models)
+
+# Data & Config
+numpy>=1.24.0               # Numerical computing
+pyyaml>=6.0                 # YAML config parsing
+scipy>=1.10.0               # Kalman filter (linalg)
+
+# Logging & Utilities
+colorama>=0.4.6             # Colored terminal output
+
+# Optional — for camera calibration
+# glob2                     # File pattern matching (built-in glob suffices)

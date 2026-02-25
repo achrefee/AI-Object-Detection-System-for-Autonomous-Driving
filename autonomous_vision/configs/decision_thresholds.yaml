@@ -1,0 +1,56 @@
+# ============================================================
+# Decision-Making Thresholds
+# ============================================================
+
+# Risk zone distances (meters)
+risk_zones:
+  critical:
+    min: 0.0
+    max: 5.0
+    action: "EMERGENCY_BRAKE"
+    color: [0, 0, 255]      # Red (BGR)
+
+  danger:
+    min: 5.0
+    max: 15.0
+    action: "HARD_BRAKE"
+    color: [0, 100, 255]    # Orange (BGR)
+
+  warning:
+    min: 15.0
+    max: 30.0
+    action: "SLOW_DOWN"
+    color: [0, 255, 255]    # Yellow (BGR)
+
+  safe:
+    min: 30.0
+    max: 999.0
+    action: "MAINTAIN"
+    color: [0, 255, 0]      # Green (BGR)
+
+# Time-to-Collision thresholds (seconds)
+ttc:
+  emergency: 1.5             # TTC < 1.5s → emergency brake
+  warning: 3.0               # TTC < 3.0s → hard brake / assess
+  caution: 5.0               # TTC < 5.0s → slow down
+
+# Traffic light logic
+traffic_light:
+  red_stop_distance: 50.0    # Max distance to respond to red light (meters)
+  yellow_proceed_distance: 10.0  # If closer than this, proceed through yellow
+  green_confidence_min: 0.5  # Minimum confidence to trust green light
+
+# Object priority weights (higher = more critical)
+# Used when multiple actions conflict
+priority_weights:
+  pedestrian: 1.0
+  cyclist: 0.95
+  car: 0.7
+  truck: 0.75
+  bus: 0.75
+  motorcycle: 0.8
+  bicycle: 0.85
+  traffic_light_red: 0.9
+  traffic_light_green: 0.3
+  traffic_light_yellow: 0.7
+  traffic_sign: 0.5

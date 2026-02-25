@@ -1,17 +1,16 @@
 """
 filter_classes.py — Filter YOLO labels to keep only needed classes.
 
-Reads labels from data/raw/labels/, remaps class IDs to the target
-class set, copies matching images, and saves results to data/processed/.
+Reads labels from data/raw/labels/, validates class IDs against the
+target class set, copies matching images, and saves results to data/processed/.
 
-Target classes (18 classes for autonomous driving):
-    0: car                  7: traffic_light_red    14: road_barrier
-    1: truck                8: traffic_light_green   15: cone
-    2: bus                  9: traffic_light_yellow  16: pothole
-    3: motorcycle          10: stop_sign             17: crosswalk
-    4: bicycle             11: speed_limit_sign
-    5: pedestrian          12: yield_sign
-    6: cyclist             13: no_entry_sign
+Target classes (11 classes for autonomous driving — BDD100K):
+    0: car                  6: cyclist
+    1: truck                7: traffic_light_red
+    2: bus                  8: traffic_light_green
+    3: motorcycle           9: traffic_light_yellow
+    4: bicycle             10: traffic_sign
+    5: pedestrian
 """
 
 import os
@@ -21,44 +20,7 @@ from pathlib import Path
 from collections import Counter
 
 
-# ── Source dataset class mappings ──────────────────────────────────────
-# Choose the correct mapping based on your raw data source.
-# Key = original class ID in raw labels, Value = new class ID (or None to drop)
-
-# MAPPING A: BDD100K detection classes → our target IDs
-BDD100K_MAPPING = {
-    #  0: pedestrian, 1: rider, 2: car, 3: truck, 4: bus,
-    #  5: train, 6: motorcycle, 7: bicycle, 8: traffic light, 9: traffic sign
-    0: 5,       # pedestrian → pedestrian (5)
-    1: 6,       # rider → cyclist (6)
-    2: 0,       # car → car (0)
-    3: 1,       # truck → truck (1)
-    4: 2,       # bus → bus (2)
-    5: None,    # train → drop
-    6: 3,       # motorcycle → motorcycle (3)
-    7: 4,       # bicycle → bicycle (4)
-    8: 7,       # traffic light → traffic_light_red (7) — refine by color later
-    9: 10,      # traffic sign → stop_sign (10) — refine by subclass later
-}
-
-# MAPPING B: COCO (after download_coco.py remap) → identity pass-through
-# download_coco.py already remaps to our target IDs, so this is a pass-through.
-COCO_MAPPING = {
-    0: 0,       # car → car (0)
-    1: 1,       # truck → truck (1)
-    2: 2,       # bus → bus (2)
-    3: 3,       # motorcycle → motorcycle (3)
-    4: 4,       # bicycle → bicycle (4)
-    5: 5,       # pedestrian → pedestrian (5)
-    7: 7,       # traffic_light_red → traffic_light_red (7)
-    10: 10,     # stop_sign → stop_sign (10)
-}
-
-# ★ SELECT YOUR SOURCE HERE ★
-# Change to BDD100K_MAPPING if using BDD100K data
-CLASS_MAPPING = COCO_MAPPING
-
-# Full 18-class target set from the AI Object Detection System Report
+# ── 11-class target set (from BDD100K) ────────────────────────────────
 TARGET_CLASSES = {
     0: "car",
     1: "truck",
@@ -70,22 +32,18 @@ TARGET_CLASSES = {
     7: "traffic_light_red",
     8: "traffic_light_green",
     9: "traffic_light_yellow",
-    10: "stop_sign",
-    11: "speed_limit_sign",
-    12: "yield_sign",
-    13: "no_entry_sign",
-    14: "road_barrier",
-    15: "cone",
-    16: "pothole",
-    17: "crosswalk",
+    10: "traffic_sign",
 }
+
+# Valid class IDs (convert_bdd100k.py already outputs correct IDs)
+VALID_CLASS_IDS = set(TARGET_CLASSES.keys())
 
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
 
 
 def filter_label_file(src_label: Path, dst_label: Path) -> int:
     """
-    Read a YOLO label file, remap classes, drop unwanted ones.
+    Read a YOLO label file, keep only valid class IDs, drop the rest.
     Returns the number of valid objects kept.
     """
     kept_lines = []
@@ -96,11 +54,8 @@ def filter_label_file(src_label: Path, dst_label: Path) -> int:
             if len(parts) < 5:
                 continue
 
-            original_class = int(parts[0])
-            new_class = CLASS_MAPPING.get(original_class)
-
-            if new_class is not None:
-                parts[0] = str(new_class)
+            class_id = int(parts[0])
+            if class_id in VALID_CLASS_IDS:
                 kept_lines.append(" ".join(parts))
 
     if kept_lines:
@@ -181,7 +136,7 @@ def main():
     print(f"   Dropped: {dropped} images (no valid objects)")
     print(f"\n📊 Class distribution:")
     for cls_name, count in sorted(stats.items(), key=lambda x: -x[1]):
-        print(f"   {cls_name:<20s}: {count:>6d}")
+        print(f"   {cls_name:<24s}: {count:>6d}")
     print(f"\n📁 Output saved to: {args.out_dir}")
 
 

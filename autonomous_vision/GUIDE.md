@@ -1,7 +1,7 @@
 # 📘 Guide Complet — Système de Détection d'Objets pour la Conduite Autonome
 
 > **Projet PFE** | Février 2026  
-> Ce guide vous accompagne jour par jour, de la préparation des données jusqu'à l'entraînement YOLO.
+> Ce guide vous accompagne de la préparation des données BDD100K jusqu'à l'entraînement YOLO.
 
 ---
 
@@ -10,13 +10,13 @@
 | Jour | Étape | Objectif |
 |------|-------|----------|
 | 1 | Structure du projet | ✅ **Fait** — Répertoires et scripts créés |
-| 1–2 | Télécharger COCO 2017 | Obtenir images + labels via script automatique |
-| 3 | Filtrer les classes | Garder uniquement les 18 classes cibles |
+| 1–2 | Télécharger BDD100K | Obtenir images + labels depuis Berkeley |
+| 2 | Convertir en YOLO | Transformer les labels JSON → format YOLO |
+| 3 | Filtrer les classes | Valider les 11 classes cibles |
 | 4 | Nettoyer le dataset | Supprimer les fichiers invalides |
 | 5 | Équilibrer le dataset | Corriger les classes sous-représentées |
 | 6 | Diviser le dataset | Train 70% / Val 20% / Test 10% |
-| 6 | Configurer dataset.yaml | ✅ **Fait** — Prêt pour l'entraînement YOLO |
-| 7+ | Compléter les classes manquantes | Ajouter GTSRB, données custom, etc. |
+| 7+ | Entraîner YOLO | Lancer l'entraînement sur Kaggle |
 
 ---
 
@@ -25,292 +25,183 @@
 ```
 autonomous_vision/
 ├── data/
-│   ├── raw/              ← Données téléchargées brutes
+│   ├── bdd100k/          ← BDD100K extrait (images + labels JSON)
+│   ├── raw/              ← Converti en format YOLO
 │   ├── processed/        ← Après filtrage et nettoyage
 │   ├── train/            ← 70% pour l'entraînement
 │   ├── val/              ← 20% pour la validation
 │   └── test/             ← 10% pour les tests
 ├── scripts/              ← Scripts de traitement
-├── dataset.yaml          ← Config YOLO
+├── dataset.yaml          ← Config YOLO (11 classes)
 └── README.md
 ```
 
 ---
 
-## 🧩 ÉTAPE 2 — Télécharger le Dataset COCO 2017 (Jour 1–2)
+## 🧩 ÉTAPE 2 — Télécharger BDD100K (Jour 1–2)
 
-### Pourquoi COCO ?
-- **330 000 images** dont beaucoup de scènes de conduite
-- 8 des 18 classes cibles disponibles directement
-- **Téléchargement automatique** via script (pas d'inscription manuelle)
-- Labels de détection de haute qualité
+### Pourquoi BDD100K ?
+- **100 000 images dashcam** de vraies scènes de conduite
+- Couvre **11 classes** pertinentes dont les feux tricolores par couleur
+- Labels de haute qualité avec bounding boxes
+- C'est **le** dataset de référence pour la conduite autonome
 
-### Prérequis — Installer les dépendances
+### Téléchargement
+
+1. Créer un compte sur [bdd-data.berkeley.edu](https://bdd-data.berkeley.edu/)
+2. Télécharger :
+   - **Images** : `bdd100k_images_100k.zip` (~6.8 Go)
+   - **Labels** : Labels de détection (format JSON)
+
+### Extraction
+
+Extraire les ZIPs dans `data/bdd100k/` :
 
 ```bash
-pip install fiftyone ultralytics Pillow
+cd autonomous_vision
+
+# Créer le répertoire
+mkdir -p data/bdd100k
+
+# Extraire les images et labels dans data/bdd100k/
+# Structure attendue après extraction :
+#   data/bdd100k/images/100k/train/*.jpg
+#   data/bdd100k/images/100k/val/*.jpg
+#   data/bdd100k/labels/det_20/det_train.json
+#   data/bdd100k/labels/det_20/det_val.json
 ```
 
-> [!NOTE]
-> FiftyOne télécharge COCO depuis les serveurs officiels. La première exécution peut prendre du temps (~20 Go).
+### Les 11 classes du projet
+
+| ID | Classe | Catégorie | Source BDD100K |
+|----|--------|-----------|----------------|
+| 0 | `car` | Véhicule | car ✅ |
+| 1 | `truck` | Véhicule | truck ✅ |
+| 2 | `bus` | Véhicule | bus ✅ |
+| 3 | `motorcycle` | Véhicule | motorcycle ✅ |
+| 4 | `bicycle` | Véhicule | bicycle ✅ |
+| 5 | `pedestrian` | Usager Vulnérable | pedestrian ✅ |
+| 6 | `cyclist` | Usager Vulnérable | rider ✅ |
+| 7 | `traffic_light_red` | Signalisation | traffic light (red) ✅ |
+| 8 | `traffic_light_green` | Signalisation | traffic light (green) ✅ |
+| 9 | `traffic_light_yellow` | Signalisation | traffic light (yellow) ✅ |
+| 10 | `traffic_sign` | Signalisation | traffic sign ✅ |
+
+---
+
+## 🧩 ÉTAPE 3 — Convertir en Format YOLO (Jour 2)
+
+### Prérequis
+
+```bash
+pip install Pillow
+```
 
 ### Commande à exécuter
 
 ```bash
 cd autonomous_vision
 
-# 🧪 Test rapide d'abord (500 images — vérifier que tout fonctionne)
-python scripts/download_coco.py --max-samples 500
+# 🧪 Test rapide (500 images — vérifier que tout fonctionne)
+python scripts/convert_bdd100k.py --max-images 500
 
-# 🚀 Téléchargement complet (toutes les images pertinentes)
-python scripts/download_coco.py
+# 🚀 Conversion complète (toutes les images)
+python scripts/convert_bdd100k.py
 ```
 
 ### Options disponibles
 
 | Option | Description |
 |--------|-------------|
-| `--max-samples 500` | Limiter le nombre d'images (pour tester) |
-| `--split train` | Télécharger uniquement le split train |
-| `--split validation` | Télécharger uniquement le split validation |
-| `--split both` | Télécharger les deux (par défaut) |
+| `--max-images 500` | Limiter le nombre d'images (pour tester) |
+| `--split train` | Convertir uniquement le split train |
+| `--split val` | Convertir uniquement le split validation |
+| `--bdd-dir data/bdd100k` | Chemin vers BDD100K (défaut) |
 
 ### Ce que fait le script
 
-1. 📥 Télécharge COCO 2017 via FiftyOne
-2. 🔍 Filtre uniquement les 8 classes pertinentes pour la conduite
-3. 📦 Exporte en format YOLO (`.txt`)
-4. 🔄 Remappe les class IDs vers notre numérotation (0–17)
-5. 📁 Organise tout dans `data/raw/images/` et `data/raw/labels/`
-
-### Résultat attendu
-```
-📥 Downloading COCO 2017 — train split
-✅ Downloaded 82783 samples
-   After filtering: ~45000 samples with target classes
-📦 Exporting to YOLO format → data/coco_export
-🔄 Remapped 45000 label files to target class IDs
-📁 Organized into data/raw:
-   Images: 45000
-   Labels: 45000
-🎉 COCO Download Complete!
-```
-
-### Classes couvertes par COCO
-
-| ✅ Couvertes (8/18) | ❌ À compléter plus tard (10/18) |
-|--------------------|----------------------------------|
-| car, truck, bus | cyclist |
-| motorcycle, bicycle | traffic_light_green, traffic_light_yellow |
-| pedestrian | speed_limit_sign, yield_sign, no_entry_sign |
-| traffic_light (→ red), stop_sign | road_barrier, cone, pothole, crosswalk |
-
-> [!TIP]
-> **Alternative : BDD100K** — Si vous préférez des images spécifiquement de conduite,
-> vous pouvez télécharger BDD100K manuellement depuis [bdd-data.berkeley.edu](https://bdd-data.berkeley.edu/).
-> Dans ce cas, changez `CLASS_MAPPING = BDD100K_MAPPING` dans `filter_classes.py`.
+1. 🔍 Détecte automatiquement la structure des fichiers BDD100K
+2. 📖 Lit les labels JSON (supporte le format det_20 et l'ancien format)
+3. 🔄 Convertit les coordonnées `(x1, y1, x2, y2)` → YOLO `(cx, cy, w, h)`
+4. 🎨 Classe les feux tricolores par couleur (rouge/vert/jaune)
+5. 📁 Sauvegarde dans `data/raw/images/` et `data/raw/labels/`
 
 ### Format YOLO (généré automatiquement)
 
-Chaque fichier `.txt` dans `data/raw/labels/` contient :
 ```
 # <class_id> <x_center> <y_center> <width> <height>
 # Toutes les valeurs sont normalisées entre 0 et 1
 0 0.4532 0.6210 0.1200 0.2500
 5 0.7800 0.5500 0.0400 0.1800
+7 0.1200 0.1500 0.0300 0.0600
 ```
 
 ---
 
-## 🧩 ÉTAPE 3 — Filtrer les Classes (Jour 3)
-
-### Objectif
-Garder uniquement les **18 classes cibles** et supprimer tout le reste.
-
-### Les 18 classes du projet
-
-| ID | Classe | Catégorie | Source |
-|----|--------|-----------|--------|
-| 0 | `car` | Véhicule | COCO ✅ |
-| 1 | `truck` | Véhicule | COCO ✅ |
-| 2 | `bus` | Véhicule | COCO ✅ |
-| 3 | `motorcycle` | Véhicule | COCO ✅ |
-| 4 | `bicycle` | Véhicule | COCO ✅ |
-| 5 | `pedestrian` | Usager Vulnérable | COCO ✅ |
-| 6 | `cyclist` | Usager Vulnérable | ⏳ BDD100K / Custom |
-| 7 | `traffic_light_red` | Signalisation | COCO ⚠️ (à raffiner par couleur) |
-| 8 | `traffic_light_green` | Signalisation | ⏳ À raffiner depuis COCO |
-| 9 | `traffic_light_yellow` | Signalisation | ⏳ À raffiner depuis COCO |
-| 10 | `stop_sign` | Signalisation | COCO ✅ |
-| 11 | `speed_limit_sign` | Signalisation | ⏳ GTSRB / Mapillary |
-| 12 | `yield_sign` | Signalisation | ⏳ GTSRB / Mapillary |
-| 13 | `no_entry_sign` | Signalisation | ⏳ GTSRB / Mapillary |
-| 14 | `road_barrier` | Obstacle | ⏳ Custom / CARLA |
-| 15 | `cone` | Obstacle | ⏳ Custom / CARLA |
-| 16 | `pothole` | Obstacle | ⏳ Custom / Kaggle |
-| 17 | `crosswalk` | Route | ⏳ Custom |
-
-### Commande à exécuter
+## 🧩 ÉTAPE 4 — Filtrer les Classes (Jour 3)
 
 ```bash
-cd autonomous_vision
 python scripts/filter_classes.py --raw-dir data/raw --out-dir data/processed
 ```
 
-### Résultat attendu
-```
-📂 Found 70000 label files in data/raw/labels
-✅ Filtering complete!
-   Kept:    58000 images
-   Dropped: 12000 images (no valid objects)
-📊 Class distribution:
-   car                 : 120000
-   pedestrian          :  45000
-   truck               :  12000
-   ...
-```
+Valide les class IDs et copie uniquement les données avec des annotations valides.
 
 ---
 
-## 🧩 ÉTAPE 4 — Nettoyer le Dataset (Jour 4)
-
-### Objectif
-Supprimer les fichiers problématiques :
-- ❌ Labels vides (0 octets)
-- ❌ Labels sans image correspondante
-- ❌ Images sans label correspondant
-- ❌ Images corrompues / illisibles
-- ❌ Labels avec format invalide
-
-### Commande à exécuter
+## 🧩 ÉTAPE 5 — Nettoyer le Dataset (Jour 4)
 
 ```bash
-# D'abord, prévisualiser ce qui sera supprimé (sans rien supprimer)
+# Prévisualiser (sans rien supprimer)
 python scripts/clean_dataset.py --data-dir data/processed --dry-run
 
-# Si tout semble correct, nettoyer pour de vrai
+# Nettoyer
 python scripts/clean_dataset.py --data-dir data/processed
 ```
 
-### Prérequis
-```bash
-pip install Pillow    # Pour vérifier les images corrompues
-```
+Supprime : labels vides, images sans label, labels sans image, images corrompues.
 
 ---
 
-## 🧩 ÉTAPE 5 — Équilibrer le Dataset (Jour 5)
-
-### Le problème
-```
-car          : 120000  ← Beaucoup trop
-stop_sign    :    500  ← Pas assez !
-cone         :     50  ← Le modèle va ignorer cette classe
-```
-
-Si le dataset est déséquilibré, **le modèle ignore les classes rares**.
-
-### Commande à exécuter
+## 🧩 ÉTAPE 6 — Équilibrer le Dataset (Jour 5)
 
 ```bash
-# Étape 1 : Analyser la distribution (ne modifie rien)
+# Analyser (ne modifie rien)
 python scripts/balance_dataset.py --data-dir data/processed --analyze-only
 
-# Étape 2 : Équilibrer (augmenter les classes rares à minimum 1000 objets)
+# Équilibrer (augmenter les classes rares)
 python scripts/balance_dataset.py --data-dir data/processed --min-objects 1000
 ```
 
-### Ce que fait le script
-1. Compte les objets par classe
-2. Pour chaque classe sous le seuil :
-   - Duplique des images contenant cette classe
-   - Applique des augmentations simples (luminosité, contraste, flou, flip)
-   - Ajuste les labels en conséquence
+Duplique et augmente les images des classes sous-représentées (luminosité, contraste, flou, flip).
 
 ---
 
-## 🧩 ÉTAPE 6 — Diviser le Dataset (Jour 6)
-
-### Commande à exécuter
+## 🧩 ÉTAPE 7 — Diviser le Dataset (Jour 6)
 
 ```bash
 python scripts/split_dataset.py --src-dir data/processed --out-dir data --copy
 ```
 
-### Résultat
-
 | Split | Pourcentage | Répertoire |
 |-------|-------------|------------|
-| Train | 70% | `data/train/images/` + `data/train/labels/` |
-| Val | 20% | `data/val/images/` + `data/val/labels/` |
-| Test | 10% | `data/test/images/` + `data/test/labels/` |
+| Train | 70% | `data/train/` |
+| Val | 20% | `data/val/` |
+| Test | 10% | `data/test/` |
 
 > [!IMPORTANT]
-> Utilisez `--copy` pour garder les données originales dans `data/processed/` en backup.
-> Sans `--copy`, les fichiers sont **déplacés** (pas de backup).
+> Utilisez `--copy` pour garder les données originales dans `data/processed/`.
 
 ---
 
-## 🧩 ÉTAPE 7 — Vérifier dataset.yaml (Jour 6)
-
-Le fichier `dataset.yaml` est déjà configuré avec les 18 classes :
-
-```yaml
-path: data
-train: train/images
-val: val/images
-test: test/images
-
-nc: 18
-names:
-  0: car
-  1: truck
-  2: bus
-  # ... (18 classes au total)
-  17: crosswalk
-```
-
-> Ce fichier sera utilisé directement par Ultralytics YOLO pour l'entraînement.
-
----
-
-## 🧩 ÉTAPE 8 — Compléter les Classes Manquantes (Jour 7+)
-
-COCO couvre 8 des 18 classes. Voici comment compléter les 10 restantes :
-
-### Sources recommandées
-
-| Classes manquantes | Dataset | Lien |
-|-------------------|---------|------|
-| `cyclist` | **BDD100K** (rider class) | [bdd-data.berkeley.edu](https://bdd-data.berkeley.edu/) |
-| `traffic_light_green/yellow` | Raffiner depuis les détections COCO | Script custom à créer |
-| `speed_limit_sign`, `yield_sign`, `no_entry_sign` | **GTSRB** | [benchmark.ini.rub.de](https://benchmark.ini.rub.de/) |
-| `road_barrier`, `cone` | **CARLA Simulator** ou collection personnelle | [carla.org](https://carla.org/) |
-| `pothole` | **Kaggle Pothole Dataset** | Chercher "pothole detection" sur Kaggle |
-| `crosswalk` | **Collection personnelle** | Dashcam footage |
-
-### Processus pour chaque source supplémentaire
-
-1. Télécharger le dataset
-2. Convertir les labels en format YOLO
-3. Remapper les class IDs vers notre numérotation (0–17)
-4. Copier dans `data/processed/images/` et `data/processed/labels/`
-5. Re-exécuter `clean_dataset.py` et `balance_dataset.py`
-6. Re-exécuter `split_dataset.py`
-
----
-
-## 🧩 ÉTAPE 9 — Entraîner avec YOLO (Phase 3 du projet)
+## 🧩 ÉTAPE 8 — Entraîner avec YOLO (Phase 3)
 
 ### Sur Kaggle Notebook (GPU gratuit)
 
 ```python
 from ultralytics import YOLO
 
-# Charger le modèle pré-entraîné
 model = YOLO("yolov8s.pt")
 
-# Lancer l'entraînement
 results = model.train(
     data="dataset.yaml",
     epochs=100,
@@ -320,38 +211,153 @@ results = model.train(
 )
 ```
 
-> Voir le rapport complet (`AI_Object_Detection_System_Report.md`) pour les paramètres détaillés et la configuration Kaggle.
+---
+
+## Phase 3 : Entraînement du Modèle (Kaggle)
+
+### Étape 1 : Préparer le Dataset pour Kaggle
+
+Après avoir exécuté tout le pipeline (conversion → filtrage → nettoyage → équilibrage → split), vous aurez :
+
+```
+data/
+├── train/
+│   ├── images/    (70% des données)
+│   └── labels/
+├── val/
+│   ├── images/    (20% des données)
+│   └── labels/
+└── test/
+    ├── images/    (10% des données)
+    └── labels/
+```
+
+**Créer un ZIP pour Kaggle :**
+
+```bash
+# Compresser le dataset final + dataset.yaml
+cd autonomous_vision
+zip -r driving-dataset.zip data/train data/val data/test dataset.yaml
+```
+
+Ensuite, uploadez `driving-dataset.zip` comme **Kaggle Dataset** sur [kaggle.com/datasets](https://www.kaggle.com/datasets).
+
+### Étape 2 : Entraîner sur Kaggle
+
+1. Créer un **nouveau Notebook** sur Kaggle
+2. **Settings** → Accelerator → **GPU T4 x2** (ou P100)
+3. **Settings** → Internet → **ON**
+4. Ajouter votre dataset au notebook
+5. Copier-coller le contenu de `notebooks/kaggle_training.py` dans une cellule
+
+Le script effectue automatiquement :
+
+| Phase | Détail | Époques |
+|-------|--------|---------|
+| **Phase 1** | Transfer Learning (backbone gelé) | 10 |
+| **Phase 2** | Fine-Tuning (tous les layers) | 100 |
+| **Évaluation** | Métriques sur le test set | — |
+| **Export** | Conversion en ONNX | — |
+
+> ⚠️ **Sessions Kaggle** : Max **12 heures** par session. Le script sauvegarde des checkpoints toutes les 10 époques. Pour reprendre :
+> ```python
+> model = YOLO("/kaggle/input/previous-run/last.pt")
+> results = model.train(resume=True)
+> ```
+
+### Étape 3 : Récupérer le Modèle
+
+Après l'entraînement, cliquez **"Save Version"** → **"Save & Run All"** sur Kaggle pour persister les sorties.
+
+Téléchargez `best.pt` depuis l'onglet **Output** du notebook et placez-le dans :
+
+```
+autonomous_vision/
+└── weights/
+    └── best.pt
+```
+
+---
+
+## Phase 3 : Inférence en Temps Réel
+
+### Lancer le Pipeline
+
+```bash
+cd autonomous_vision
+
+# Webcam (caméra par défaut)
+python -m src.pipeline.realtime_pipeline --model weights/best.pt
+
+# Fichier vidéo
+python -m src.pipeline.realtime_pipeline --source driving_video.mp4 --model weights/best.pt
+
+# Avec sauvegarde vidéo
+python -m src.pipeline.realtime_pipeline --source video.mp4 --model weights/best.pt --output result.mp4
+
+# Avec estimation de profondeur MiDaS (plus précis, plus lent)
+python -m src.pipeline.realtime_pipeline --source video.mp4 --model weights/best.pt --midas
+
+# CPU uniquement
+python -m src.pipeline.realtime_pipeline --source video.mp4 --model weights/best.pt --device cpu
+```
+
+**Contrôles :**
+- `Q` ou `ESC` : Quitter
+- Le HUD affiche : détections, distances, zones de risque, FPS, action en cours
+
+### Options CLI
+
+| Argument | Défaut | Description |
+|----------|--------|-------------|
+| `--source` | `0` | Fichier vidéo ou index caméra |
+| `--model` | `yolov8s.pt` | Chemin vers les poids YOLO |
+| `--config` | `configs` | Dossier de configuration |
+| `--device` | `cuda` | `cuda` ou `cpu` |
+| `--confidence` | `0.35` | Seuil de confiance |
+| `--output` | — | Chemin vidéo de sortie |
+| `--midas` | off | Activer MiDaS depth |
+| `--no-display` | off | Désactiver l'affichage |
+
+---
+
+## Calibration Caméra (Optionnel)
+
+Pour améliorer la précision de l'estimation de distance, calibrez votre caméra :
+
+```bash
+# Depuis des images de damier
+python scripts/camera_calibration.py --images calibration_images/ --board 9x6
+
+# Depuis la caméra en direct (appuyer ESPACE pour capturer)
+python scripts/camera_calibration.py --camera 0 --board 9x6
+```
+
+Les paramètres calibrés sont sauvegardés dans `configs/camera_params.yaml`.
 
 ---
 
 ## 📋 Checklist Résumée
 
+### Phase 2 : Dataset
 - [x] Créer la structure du projet
 - [x] Créer les scripts de traitement
-- [x] Créer le script de téléchargement COCO
-- [x] Configurer `dataset.yaml` (18 classes)
-- [ ] Installer les dépendances (`pip install fiftyone ultralytics Pillow`)
-- [ ] Tester le téléchargement (`download_coco.py --max-samples 500`)
-- [ ] Lancer le téléchargement complet (`download_coco.py`)
+- [x] Configurer `dataset.yaml` (11 classes BDD100K)
+- [ ] Télécharger BDD100K depuis bdd-data.berkeley.edu
+- [ ] Extraire les ZIPs dans `data/bdd100k/`
+- [ ] Tester la conversion (`convert_bdd100k.py --max-images 500`)
+- [ ] Lancer la conversion complète (`convert_bdd100k.py`)
 - [ ] Exécuter `filter_classes.py`
 - [ ] Exécuter `clean_dataset.py`
 - [ ] Exécuter `balance_dataset.py`
 - [ ] Exécuter `split_dataset.py`
-- [ ] Télécharger les datasets complémentaires (GTSRB, etc.)
-- [ ] Lancer l'entraînement YOLO sur Kaggle
 
----
-
-## ❓ Besoin d'Aide ?
-
-| Si vous êtes bloqué sur... | Demandez-moi... |
-|---------------------------|-----------------|
-| Erreur avec FiftyOne | Copiez-collez l'erreur |
-| Ajouter les données BDD100K | "Change le mapping pour BDD100K" |
-| Convertir GTSRB | "Crée un script pour convertir GTSRB en YOLO" |
-| Entraînement Kaggle | "Crée le notebook Kaggle d'entraînement" |
-| Erreurs dans les scripts | Copiez-collez l'erreur |
-| Module de distance | "Crée le module d'estimation de distance" |
+### Phase 3 : Entraînement & Inférence
+- [ ] Compresser et uploader le dataset sur Kaggle
+- [ ] Lancer `notebooks/kaggle_training.py` sur Kaggle (GPU T4 x2)
+- [ ] Télécharger `best.pt` → `weights/best.pt`
+- [ ] Tester : `python -m src.pipeline.realtime_pipeline --model weights/best.pt`
+- [ ] (Optionnel) Calibrer la caméra : `python scripts/camera_calibration.py`
 
 ---
 

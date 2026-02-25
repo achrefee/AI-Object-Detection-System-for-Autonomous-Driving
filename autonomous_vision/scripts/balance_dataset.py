@@ -35,14 +35,7 @@ CLASS_NAMES = {
     7: "traffic_light_red",
     8: "traffic_light_green",
     9: "traffic_light_yellow",
-    10: "stop_sign",
-    11: "speed_limit_sign",
-    12: "yield_sign",
-    13: "no_entry_sign",
-    14: "road_barrier",
-    15: "cone",
-    16: "pothole",
-    17: "crosswalk",
+    10: "traffic_sign",
 }
 
 
